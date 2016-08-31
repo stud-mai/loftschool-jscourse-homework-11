@@ -1,69 +1,69 @@
 let fs = require('fs');
 
-let tab = '   ',
-    tree = '|--',
-    data = [],
-    depth = 0,
-    stat;
-
-function getDirSize(dirs,path){
-    let sum = 0;
+function makeDirsFirst(source, path){
+	return source.sort((dir, file) => {
+		let statD = fs.statSync(`${path}/${dir}`),
+			statF = fs.statSync(`${path}/${file}`);
+		if (!statD.isFile() && statF.isFile()) return -1
+		else if (statD.isFile() && !statF.isFile()) return 1
+	})
+}
+	
+function createJSON(dirs,path){
+    let sum = 0,
+		items = [],
+		stat;
     for (let i = 0, len = dirs.length; i < len; i++){
-        dirs[i] = `${path}/${dirs[i]}`;
-        stat = fs.statSync(dirs[i]);
-        if (!stat.isFile()) {
-            let subdir = fs.readdirSync(dirs[i]);
-            depth++;
-            sum += getDirSize(subdir, dirs[i],depth);
+        let fullPath = `${path}/${dirs[i]}`,
+			dirContent = {};			
+        stat = fs.statSync(fullPath);
+        if (!stat.isFile()) {			
+			dirContent.name = dirs[i];
+			dirContent.type = 'dir';
+			dirContent.size = 0;
+			dirContent.items = [];
+            [dirContent.items, dirContent.size] = createJSON(fs.readdirSync(fullPath), fullPath);
+			sum += dirContent.size;
         }
         else {
-            sum += Math.ceil(stat['size'] / 1024);
+            let fsize = Math.ceil(stat['size'] / 1024)
+            sum += fsize;
+			dirContent.name = dirs[i];
+			dirContent.type = 'file';
+			dirContent.size = fsize;	
         }
-        if (i === len - 1) {
-            data.push({depth: depth, name: path, size: sum});
-            depth--;
-        }
+		items.push(dirContent);
     }
-    return sum;
+    return [items, sum];
 }
 
-function liftupDirs(source, path){
-    return source.sort((dir, file) => {
-        let statD = fs.statSync(`${path}/${dir}`),
-            statF = fs.statSync(`${path}/${file}`);
-        if (!statD.isFile() && statF.isFile()) return -1
-        else if (statD.isFile() && !statF.isFile()) return 1
-    })
+function printJSON(source){
+	let tab = '   ',
+		tree = '|--';
+	console.log(`${tab.repeat(depth)}${(depth > 0)? tree : ''}${source.name} (${source.size} kb)`);
+	if (source.items) {
+		depth++;
+		for (let item of source.items){			
+			printJSON(item)
+		}
+		depth--;
+	}
 }
 
-function lookupInside(dirs, path){
-    if (depth === 0) console.log(`${path} (${data[data.length - 1].size} kb)`);
-    for (let i = 0, len = dirs.length; i < len; i++){
-        dirs[i] = `${path}/${dirs[i]}`;
-        stat = fs.statSync(dirs[i]);
-        if (!stat.isFile()) {
-            let subdir = fs.readdirSync(dirs[i]),
-                size = data.filter((obj) => {
-                    return (obj.name == dirs[i] && obj.depth == depth + 1)
-                })[0];
-            console.log(`${tab.repeat(depth)}${tree}${dirs[i].substring(dirs[i].lastIndexOf('/') + 1)} (${size.size} kb)`);
-            depth++;
-            lookupInside(liftupDirs(subdir, dirs[i]), dirs[i]);
-        }
-        else {
-            console.log(`${tab.repeat(depth)}${tree}${dirs[i].substring(dirs[i].lastIndexOf('/') + 1)} (${Math.ceil(stat['size'] / 1024)} kb)`);
-        }
-        if (i === len - 1) depth--;
-    }
-}
-
-module.exports = function(path) {
-    try {
-        getDirSize(fs.readdirSync(path), path);
-        depth = 0;
-        lookupInside(liftupDirs(fs.readdirSync(path), path), path);
+module.exports = function(path) {    
+	try {
+		let items = fs.readdirSync(path),
+			sortedItems = makeDirsFirst(items,path);
+			json = createJSON(sortedItems,path);
+			result = {
+				name: path,
+				type: 'dir',
+				size: json[1],
+				items: json[0]
+			},
+			depth = 0;
+		printJSON(result);
     } catch (err) {
         console.error(err);
     }
 };
-
