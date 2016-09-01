@@ -26,7 +26,7 @@ function createJSON(dirs,path){
 			sum += dirContent.size;
         }
         else {
-            let fsize = Math.ceil(stat['size'] / 1024)
+            let fsize = Math.ceil(stat['size'] / 1024);
             sum += fsize;
 			dirContent.name = dirs[i];
 			dirContent.type = 'file';
@@ -53,8 +53,8 @@ function printJSON(source){
 module.exports = function(path) {    
 	try {
 		let items = fs.readdirSync(path),
-			sortedItems = makeDirsFirst(items,path);
-			json = createJSON(sortedItems,path);
+			sortedItems = makeDirsFirst(items,path),
+			json = createJSON(sortedItems,path),
 			result = {
 				name: path,
 				type: 'dir',
